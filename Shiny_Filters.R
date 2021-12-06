@@ -12,9 +12,16 @@ library(psych)
 
 players <- read_csv("FullData.csv")
 
+tien_dao = c("ST", "CF", "LF", "RF", "RW", "LW")
+data_filter_tien_dao = filter(players, Club_Position %in% tien_dao)
+
+tien_ve = c("CAM", "LM", "RM", "CM", "CDM", "RDM", "LDM")
+data_filter_tien_ve = filter(players, Club_Position %in% tien_ve)
+
 # tao data cho hien thi danh sach cac cau thu
 data_table <- data.frame(
   Name = players$Name,
+  Rating = players$Rating,
   Nationality = players$Nationality,
   `National Position` = players$National_Position,
   `National Kit` = players$National_Kit,
@@ -32,14 +39,15 @@ data_table <- data.frame(
 
 
 ui <- dashboardPage(
-  dashboardHeader(title = "Filter Examples"),
+  dashboardHeader(title = "Chuyen de R"),
   dashboardSidebar(
     sidebarMenu(
       menuItem("Trang chu", tabName = "all"),
       menuItem("So sanh 2 cau thu", tabName = "Common"),
       menuItem("So sanh giua cac clb", tabName = "so_sanh_clb"),
       menuItem("Bieu do", tabName = "Bieudo"),
-      menuItem("Hoi quy tuyen tinh", tabName = "Hoi_quy_tuyen_tinh")
+      menuItem("Hoi quy tuyen tinh da bien", tabName = "Hoi_quy_tuyen_tinh"),
+      menuItem("Hoi quy tuyen tinh don bien", tabName = "moi_tuong_quan")
     )
   ),
   dashboardBody(
@@ -103,7 +111,7 @@ ui <- dashboardPage(
                 box(plotOutput("so_sanh_chan_thuan_khong_thuan_clb"), width = 12)
               ),
               fluidRow(
-                box(plotOutput("chi_so_trung_binh_clb"), width = 12)
+                box(p("Bieu do the hien chi so rating cac cau lac bo"),plotOutput("chi_so_trung_binh_clb"), width = 12)
               )
       ),
       tabItem(tabName = "Bieudo",
@@ -126,16 +134,29 @@ ui <- dashboardPage(
               ),
               fluidRow(
                 box(plotOutput("bieu_do_phan_bo_chi_so"), width = 12)
-              ),
-              fluidRow(
-                box(plotOutput("moi_tuong_quan_chuyen_xa_va_gan"), width = 6),
-                box(plotOutput("noi_tuong_quan_giua_pahn_ung_hieu_chien"), width = 6)
               )
       ),
       tabItem(tabName = "Hoi_quy_tuyen_tinh",
 
               fluidRow(
-                box(plotOutput("Hoi_quy_tuyen_tinh_tien_dao"), width = 12)
+                box(p("Mo hoi hoi quy da bien, du doan chi tien dao"), width = 12),
+                box(selectInput("cau_thu_du_doan", label = "Player", choices = unique(data_filter_tien_dao$Name), selected = "Cristiano Ronaldo"), width = 3),
+                box(verbatimTextOutput("du_doan_chi_so_tien_dao_summary"), width = 6),
+                box(verbatimTextOutput("du_doan_chi_so_tien_dao"), width = 3)
+              ),
+              fluidRow(
+                box(p("Mo hoi hoi quy da bien, du doan chi tien ve"), width = 12),
+                box(selectInput("cau_thu_du_doan_tien_ve", label = "Player", choices = unique(data_filter_tien_ve$Name), selected = "Cristiano Ronaldo"), width = 3),
+                box(verbatimTextOutput("du_doan_chi_so_tien_ve_summary"), width = 6),
+                box(verbatimTextOutput("du_doan_chi_so_tien_ve"), width = 3)
+              )
+      ),
+      tabItem(tabName = "moi_tuong_quan",
+
+              fluidRow(
+                box(plotOutput("moi_tuong_quan_giua_toc_do_tang_toc"), width = 6),
+                box(verbatimTextOutput("moi_tuong_quan_giua_toc_do_tang_toc_summary"), width = 6),
+
               )
       )
     )
@@ -189,6 +210,7 @@ server <- function(input, output) {
                   & players$Age <= strtoi(input$v_select_age_2)
                   & players$Nationality == input$v_select_country)
 
+    # tinh trung binh chi so
     avg_rating = aggregate(data$Rating, list(data$Age), FUN=mean)
     data_avg_rating <- data.frame(
       x = c(avg_rating$Group.1),
@@ -281,28 +303,35 @@ server <- function(input, output) {
 
   })
 
-  #bieu do the hien cac chi so phan ung va hieu chien
-  output$noi_tuong_quan_giua_pahn_ung_hieu_chien <- renderPlot({
+  #bieu do
+  output$moi_tuong_quan_giua_toc_do_tang_toc <- renderPlot({
 
-    data_filter = filter(players, players$Age >= strtoi(input$v_select_age_1)
-                         & players$Age <= strtoi(input$v_select_age_2)
-                         & players$Nationality == input$v_select_country )
 
-    data_tam <- data.frame(
-      Aggression = c(data_filter$Aggression),
-      Reactions = c(data_filter$Reactions)
+    data = data.frame(
+      Acceleration = c(players$Acceleration),
+      Speed = c(players$Speed)
     )
 
+    hoiquy <- lm(data = data, Acceleration ~ Speed)
 
-    plot(data_tam$Aggression ~ data_tam$Reactions, pch=16, main="Bieu do the hien moi lien he giua muc do hieu chien va phan ung",
-         xlab="Chi so hieu chien", ylab="Chi so phan ung", bty="l")
-
-    reg <- lm(data_tam$Aggression ~ data_tam$Reactions)
-    data_tam
-
-    abline(reg)
+    plot(Acceleration~Speed,data=data)
+    abline(hoiquy,col="red")
 
   })
+
+  output$moi_tuong_quan_giua_toc_do_tang_toc_summary <- renderPrint({
+
+    data = data.frame(
+      Acceleration = c(players$Acceleration),
+      Speed = c(players$Speed)
+    )
+
+    hoiquy <- lm(data = data, Acceleration ~ Speed)
+    summary(hoiquy)
+
+  })
+
+
 
   # bieu do tron, the hien ti le clb
   output$clbPlayers <- renderPlotly({
@@ -343,7 +372,7 @@ server <- function(input, output) {
 
 
     fig <- plot_ly(data, labels = ~group, values = ~value, type = 'pie')
-    fig <- fig %>% layout(title = 'United States Personal Expenditures by Categories sssss 1960',
+    fig <- fig %>% layout(title = 'Bieu do the hien ti trong cau thu theo vi tri',
                           xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
                           yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
 
@@ -491,47 +520,134 @@ server <- function(input, output) {
 
   }, colnames = FALSE, rownames = TRUE, align = 'c')
 
+  # du doan chi so tien dao
+  output$du_doan_chi_so_tien_dao_summary <- renderPrint({
 
-  # mo hinh hoi quy tuyen tinh cua tien dao
-  output$Hoi_quy_tuyen_tinh_tien_dao <- renderPlot({
-
-    tien_dao = c("ST", "CF", "LF", "RF", "RW", "LW")
-    datas = filter(players, Club_Position %in% tien_dao)
-
-
-    lm_datamovie <- select(datas, c(Skill_Moves,
-                                    Ball_Control,
-                                    Standing_Tackle,
-                                    Attacking_Position,
-                                    Crossing,
-                                    Acceleration,
-                                    Finishing,
-                                    Freekick_Accuracy,
-                                    Volleys,
-                                    Rating))
+    lm_datamovie <- select(data_filter_tien_dao, c(Skill_Moves,
+                                                   Ball_Control,
+                                                   Standing_Tackle,
+                                                   Attacking_Position,
+                                                   Crossing,
+                                                   Acceleration,
+                                                   Finishing,
+                                                   Freekick_Accuracy,
+                                                   Volleys,
+                                                   Rating))
 
     lm_soccer <- lm(Rating ~ ., data=lm_datamovie)
     summary(lm_soccer)
+  })
+
+  output$du_doan_chi_so_tien_dao <- renderPrint({
+
+    lm_datamovie <- select(data_filter_tien_dao, c(Skill_Moves,
+                                                   Ball_Control,
+                                                   Standing_Tackle,
+                                                   Attacking_Position,
+                                                   Crossing,
+                                                   Acceleration,
+                                                   Finishing,
+                                                   Freekick_Accuracy,
+                                                   Volleys,
+                                                   Rating))
+
+    lm_soccer <- lm(Rating ~ ., data=lm_datamovie)
+    #summary(lm_soccer)
 
     lm_s <- step(lm_soccer, direction = "backward", trace = FALSE)
     summary(lm_s)
-    anova(lm_s)
+    #anova(lm_s)
     ###s
 
-    pairs.panels(lm_datamovie, col='red')
+    #pairs.panels(lm_datamovie, col='red')
 
-    mov_fh <- data.frame(Skill_Moves = 5,
-                         Ball_Control = 93,
-                         Standing_Tackle= 31,
-                         Attacking_Position = 94,
-                         Crossing = 84,
-                         Acceleration = 91,
-                         Finishing = 93,
-                         Freekick_Accuracy = 76,
-                         Volleys = 88)
+    # data cau thu duoc chon
+    cau_thu_chon = filter(data_filter_tien_dao, data_filter_tien_dao$Name == input$cau_thu_du_doan)
+
+    mov_fh <- data.frame(Skill_Moves = cau_thu_chon$Skill_Moves,
+                         Ball_Control = cau_thu_chon$Ball_Control,
+                         Standing_Tackle= cau_thu_chon$Standing_Tackle,
+                         Attacking_Position = cau_thu_chon$Attacking_Position,
+                         Crossing = cau_thu_chon$Crossing,
+                         Acceleration = cau_thu_chon$Acceleration,
+                         Finishing = cau_thu_chon$Finishing,
+                         Freekick_Accuracy = cau_thu_chon$Freekick_Accuracy,
+                         Volleys = cau_thu_chon$Volleys)
 
     prediction <- predict(lm_s, newdata=mov_fh, interval="confidence")
     prediction
+
+  })
+
+
+  # du doan chi so tien ve
+  output$du_doan_chi_so_tien_ve_summary <- renderPrint({
+
+    lm_datamovie <- select(data_filter_tien_ve, c(
+                                                   Ball_Control,
+                                                   Dribbling,
+                                                   Attacking_Position,
+                                                   Vision,
+                                                   Short_Pass,
+                                                   Long_Pass,
+                                                   Rating))
+
+    lm_soccer <- lm(Rating ~ ., data=lm_datamovie)
+    summary(lm_soccer)
+  })
+
+  output$du_doan_chi_so_tien_ve <- renderPrint({
+
+    lm_datamovie <- select(data_filter_tien_ve, c(
+      Ball_Control,
+      Dribbling,
+      Attacking_Position,
+      Vision,
+      Short_Pass,
+      Long_Pass,
+      Rating))
+
+    lm_soccer <- lm(Rating ~ ., data=lm_datamovie)
+    #summary(lm_soccer)
+
+    lm_s <- step(lm_soccer, direction = "backward", trace = FALSE)
+    summary(lm_s)
+    #anova(lm_s)
+    ###s
+
+    #pairs.panels(lm_datamovie, col='red')
+
+    # data cau thu duoc chon
+    cau_thu_chon = filter(data_filter_tien_ve, data_filter_tien_ve$Name == input$cau_thu_du_doan_tien_ve)
+
+    mov_fh <- data.frame(
+                         Ball_Control = cau_thu_chon$Ball_Control,
+                         Dribbling= cau_thu_chon$Dribbling,
+                         Attacking_Position = cau_thu_chon$Attacking_Position,
+                         Crossing = cau_thu_chon$Crossing,
+                         Vision = cau_thu_chon$Vision,
+                         Short_Pass = cau_thu_chon$Short_Pass,
+                         Long_Pass = cau_thu_chon$Long_Pass)
+
+    prediction <- predict(lm_s, newdata=mov_fh, interval="confidence")
+    prediction
+
+  })
+
+  # mo hinh moi tuong qua tien dao
+  output$moi_tuong_quan_tien_dao <- renderPlot({
+    par(mfrow=c(1,1))
+    tien_dao = c("ST", "CF", "LF", "RF", "RW", "LW")
+    datas = filter(players, Club_Position %in% tien_dao)
+
+    model <- lm(data = datas, Rating ~ Skill_Moves + Ball_Control + Standing_Tackle + Attacking_Position + Crossing +
+                  Acceleration + Finishing + Freekick_Accuracy + Volleys)
+
+
+    plot(data = datas, Rating ~ Skill_Moves+Ball_Control+Standing_Tackle+Attacking_Position+Crossing+
+           Acceleration + Finishing + Freekick_Accuracy + Volleys)
+
+    abline(model,col="red")
 
   })
 
@@ -558,7 +674,7 @@ server <- function(input, output) {
     # bar plot, fill to discrete column, color to static value
     ggplot(data, mapping = aes(x = Club))+
       geom_bar(mapping = aes(fill = Preffered_Foot), color = "yellow")+
-      labs(title = "Fill mapped to discrete column, static color")
+      labs(title = "Bieu do the hien  ti le thuan chan thuan cua cac cau lac bo")
 
 
   })
